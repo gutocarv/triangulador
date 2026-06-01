@@ -1032,7 +1032,9 @@ function startFirebaseSync() {
         lat:      data.lat,
         lon:      data.lon,
         azimute:  data.azimute,
+        elevacao: data.elevacao ?? null,
         alvo:     data.alvo || 'Alvo',
+        fotoUrl:  data.fotoUrl || null,
         ts:       data.tsLocal || '',
         fromFirebase: true,
       });
@@ -1313,12 +1315,21 @@ function renderMap(silent) {
     const dist = p.distancia || 8000;
     const [latF, lonF] = azimuthPoint(p.lat, p.lon, p.azimute, dist);
 
+    const fotoHtml = p.fotoUrl
+      ? `<br><a href="${p.fotoUrl}" target="_blank">
+           <img src="${p.fotoUrl}" style="width:180px;height:120px;object-fit:cover;border-radius:6px;margin-top:6px;display:block;border:1px solid #30363d;">
+         </a>`
+      : '';
+    const elevHtml = p.elevacao !== null && p.elevacao !== undefined
+      ? `<br>Elev: ${p.elevacao > 0 ? '+' : ''}${p.elevacao}°${Math.abs(p.elevacao) > 30 ? ' <span style="color:#e3b341">⚠️ alvo elevado</span>' : ''}`
+      : '';
     const mk = L.circleMarker([p.lat, p.lon], {
       radius: 7, color: cor, fillColor: cor, fillOpacity: 1, weight: 2
     }).bindPopup(`<b>${p.nome}</b><br>
-      Az: ${p.azimute.toFixed(1)}° → <b>${p.alvo}</b><br>
+      Az: ${p.azimute.toFixed(1)}° → <b>${p.alvo}</b>${elevHtml}<br>
       ${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}
-      ${p.distancia ? `<br>Dist: ${p.distancia}m` : ''}`);
+      ${p.distancia ? `<br>Dist: ${p.distancia}m` : ''}
+      ${fotoHtml}`, { maxWidth: 220 });
     mk.addTo(map); markers.push(mk);
 
     const ln = L.polyline([[p.lat, p.lon],[latF, lonF]], {
