@@ -1761,10 +1761,29 @@ function loadFromFile() {
 }
 
 // ═══════════════════════════════════════════════════════════
+//  EXPOSE TO WINDOW (required because script is type="module")
+// ═══════════════════════════════════════════════════════════
+// All functions called via onclick= in HTML must be on window
+window.openModal        = id => document.getElementById(id).classList.add('active');
+window.closeModal       = id => document.getElementById(id).classList.remove('active');
+window.confirmClear     = ()  => confirmClear();
+window.shareData        = ()  => shareData();
+window.copyShareUrl     = ()  => copyShareUrl();
+window.saveData         = ()  => saveData();
+window.runTriangulation = ()  => runTriangulation();
+window.renderMap        = ()  => renderMap();
+window.openEditPoint    = idx => openEditPoint(idx);
+window.duplicatePoint   = idx => duplicatePoint(idx);
+window.deletePoint      = idx => deletePoint(idx);
+window.submitPoint      = ()  => submitPoint();
+window.loadFromFile     = ()  => loadFromFile();
+
+// ═══════════════════════════════════════════════════════════
 //  UI HELPERS
 // ═══════════════════════════════════════════════════════════
 function openModal(id) { document.getElementById(id).classList.add('active'); }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+// window versions set above also point to these
 
 // Close on backdrop click
 document.querySelectorAll('.overlay').forEach(el => {
