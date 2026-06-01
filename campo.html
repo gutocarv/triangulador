@@ -105,6 +105,7 @@
   .obs-btn span { font-size: 10px; font-family: var(--mono); color: var(--text3); }
   .obs-btn.selected { border-color: var(--accent); background: rgba(74,222,128,0.08); color: var(--accent); }
   .obs-btn.selected b { color: var(--accent); }
+  .obs-btn.selected span { color: rgba(74,222,128,0.6); }
 
   .other-loc-row { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
   .other-loc-row input {
@@ -545,8 +546,19 @@ function attachCompass() {
   compassStatus.className = 'compass-status active';
   compassStatus.textContent = 'Bússola ativa — aponte para o alvo';
 
-  window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-  window.addEventListener('deviceorientation', handleOrientation, true);
+  // Prefere o evento absoluto (mais preciso no Android)
+  let gotAbsolute = false;
+  window.addEventListener('deviceorientationabsolute', (e) => {
+    gotAbsolute = true;
+    handleOrientation(e);
+  }, true);
+
+  // Fallback: evento padrão se o absoluto não disparar em 500ms
+  setTimeout(() => {
+    if (!gotAbsolute) {
+      window.addEventListener('deviceorientation', handleOrientation, true);
+    }
+  }, 500);
 }
 
 let lastAlpha = null;
@@ -555,31 +567,39 @@ function handleOrientation(e) {
 
   let az = null;
 
-  // webkitCompassHeading = azimute real no iOS
-  if (e.webkitCompassHeading !== undefined && e.webkitCompassHeading !== null) {
+  // iOS: webkitCompassHeading é o azimute real (0=Norte, cresce horário)
+  if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) {
     az = e.webkitCompassHeading;
-  } else if (e.absolute && e.alpha !== null) {
-    az = (360 - e.alpha) % 360;
-  } else if (e.alpha !== null) {
-    az = (360 - e.alpha) % 360;
+  }
+  // Android com sensor absoluto: alpha é rotação do dispositivo, 0=Norte magnético
+  else if (e.absolute === true && e.alpha !== null && !isNaN(e.alpha)) {
+    az = (360 - e.alpha + 360) % 360;
+  }
+  // Android sem absoluto: ainda usa alpha como aproximação
+  else if (e.alpha !== null && !isNaN(e.alpha)) {
+    az = (360 - e.alpha + 360) % 360;
+    // Avisa que pode não ser calibrado
+    if (compassStatus.textContent.includes('aponte')) {
+      compassStatus.textContent = 'Bússola ativa (calibre girando o celular em ∞)';
+    }
   }
 
   if (az === null) return;
   az = ((az % 360) + 360) % 360;
 
-  // Suavização leve
+  // Suavização exponencial
   if (lastAlpha !== null) {
     let diff = az - lastAlpha;
     if (diff >  180) diff -= 360;
     if (diff < -180) diff += 360;
-    az = lastAlpha + diff * 0.3;
+    az = lastAlpha + diff * 0.25;
     az = ((az % 360) + 360) % 360;
   }
   lastAlpha = az;
 
   currentAz = az;
-  azValEl.textContent   = Math.round(az);
-  azDirEl.textContent   = azToDir(az);
+  azValEl.textContent      = Math.round(az).toString().padStart(3, '0');
+  azDirEl.textContent      = azToDir(az);
   needleEl.style.transform = `rotate(${az}deg)`;
   checkReady();
 }
