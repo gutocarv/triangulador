@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Japi — Registrar Observação</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0f0a;
+    --panel: #111811;
+    --border: #1e2e1e;
+    --accent: #4ade80;
+    --accent2: #60a5fa;
+    --accent3: #f97316;
+    --text: #e8f5e8;
+    --text2: #86a886;
+    --text3: #4a6a4a;
+    --danger: #f87171;
+    --mono: 'Space Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .header-title {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .header-sub {
+    font-size: 11px;
+    color: var(--text3);
+    font-family: var(--mono);
+    margin-top: 2px;
+  }
+  .sync-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--text3);
+    transition: background 0.3s;
+  }
+  .sync-dot.ok  { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  .sync-dot.err { background: var(--danger); }
+
+  /* ── MAIN SCROLL ── */
+  .main { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .card-head {
+    padding: 12px 16px 8px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text3);
+    border-bottom: 1px solid var(--border);
+  }
+  .card-body { padding: 14px 16px; }
+
+  /* ── OBSERVER SELECT ── */
+  .observer-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .obs-btn {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 8px;
+    cursor: pointer;
+    text-align: center;
+    transition: border-color 0.15s, background 0.15s;
+    color: var(--text2);
+  }
+  .obs-btn b { display: block; font-size: 13px; color: var(--text); margin-bottom: 2px; }
+  .obs-btn span { font-size: 10px; font-family: var(--mono); color: var(--text3); }
+  .obs-btn.selected { border-color: var(--accent); background: rgba(74,222,128,0.08); color: var(--accent); }
+  .obs-btn.selected b { color: var(--accent); }
+
+  .other-loc-row { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+  .other-loc-row input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    padding: 9px 12px;
+    outline: none;
+  }
+  .other-loc-row input:focus { border-color: var(--accent2); }
+  .other-loc-row input::placeholder { color: var(--text3); }
+  .gps-badge {
+    font-size: 10px;
+    font-family: var(--mono);
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text3);
+    white-space: nowrap;
+  }
+  .gps-badge.ok { border-color: var(--accent); color: var(--accent); }
+  .gps-badge.searching { border-color: var(--accent2); color: var(--accent2); animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* ── BÚSSOLA ── */
+  .compass-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 0;
+    gap: 12px;
+  }
+  .compass-ring {
+    position: relative;
+    width: 220px;
+    height: 220px;
+  }
+  .compass-svg { width: 100%; height: 100%; }
+  .compass-needle {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 4px; height: 90px;
+    margin-left: -2px;
+    margin-top: -80px;
+    transform-origin: bottom center;
+    transition: transform 0.15s ease-out;
+    pointer-events: none;
+  }
+  .needle-north {
+    width: 0; height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: 72px solid var(--danger);
+    margin: 0 auto;
+  }
+  .needle-south {
+    width: 0; height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 22px solid var(--text3);
+    margin: 0 auto;
+  }
+  .compass-center {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    width: 12px; height: 12px;
+    background: var(--text);
+    border-radius: 50%;
+    z-index: 2;
+  }
+  .compass-az {
+    font-family: var(--mono);
+    font-size: 42px;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+    letter-spacing: -1px;
+  }
+  .compass-az span { font-size: 20px; color: var(--text3); }
+  .compass-dir {
+    font-size: 14px;
+    color: var(--text2);
+    font-family: var(--mono);
+    letter-spacing: 1px;
+  }
+  .compass-status {
+    font-size: 12px;
+    color: var(--text3);
+    font-family: var(--mono);
+    text-align: center;
+    padding: 6px 12px;
+    background: var(--bg);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    width: 100%;
+  }
+  .compass-status.active { color: var(--accent2); border-color: var(--accent2); }
+  .compass-status.error  { color: var(--danger); border-color: var(--danger); }
+
+  /* Lock button */
+  .lock-btn {
+    width: 100%;
+    padding: 14px;
+    border: 2px solid var(--accent2);
+    border-radius: 10px;
+    background: rgba(96,165,250,0.08);
+    color: var(--accent2);
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .lock-btn:active { transform: scale(0.97); }
+  .lock-btn.locked { border-color: var(--accent3); background: rgba(249,115,22,0.1); color: var(--accent3); }
+
+  /* Target input */
+  .target-row { display: flex; flex-direction: column; gap: 8px; }
+  .target-input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    padding: 11px 14px;
+    outline: none;
+    width: 100%;
+  }
+  .target-input:focus { border-color: var(--accent2); }
+  .target-input::placeholder { color: var(--text3); }
+
+  /* ── REGISTER BUTTON ── */
+  .register-btn {
+    width: 100%;
+    padding: 18px;
+    border: none;
+    border-radius: 12px;
+    background: var(--accent);
+    color: #000;
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: opacity 0.15s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+  .register-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .register-btn:not(:disabled):active { transform: scale(0.98); }
+
+  /* ── RECENT LIST ── */
+  .recent-item {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--text2);
+    line-height: 1.7;
+  }
+  .recent-item:last-child { border-bottom: none; }
+  .recent-item b { color: var(--accent); }
+  .recent-empty { text-align: center; padding: 16px 0; color: var(--text3); font-size: 12px; font-family: var(--mono); }
+
+  /* ── TOAST ── */
+  .toast-wrap { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 999; pointer-events: none; }
+  .toast {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    white-space: nowrap;
+    animation: toastIn 0.2s ease;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  }
+  .toast.success { border-color: var(--accent); color: var(--accent); }
+  .toast.error   { border-color: var(--danger); color: var(--danger); }
+  @keyframes toastIn { from{transform:translateY(8px);opacity:0} to{transform:none;opacity:1} }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-title">🌿 JAPI CAMPO</div>
+    <div class="header-sub" id="headerSub">Conectando...</div>
+  </div>
+  <div class="sync-dot" id="syncDot"></div>
+</div>
+
+<div class="main">
+
+  <!-- OBSERVADOR -->
+  <div class="card">
+    <div class="card-head">📍 Quem está observando</div>
+    <div class="card-body">
+      <div class="observer-grid" id="observerGrid"></div>
+      <div class="other-loc-row" id="otherLocRow" style="display:none;">
+        <input type="text" id="otherName" placeholder="Nome do local">
+        <div class="gps-badge" id="gpsBadge">GPS...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BÚSSOLA -->
+  <div class="card">
+    <div class="card-head">🧭 Azimute</div>
+    <div class="card-body">
+      <div class="compass-wrap">
+        <div class="compass-ring">
+          <svg class="compass-svg" viewBox="0 0 220 220">
+            <!-- Anel externo -->
+            <circle cx="110" cy="110" r="105" fill="none" stroke="#1e2e1e" stroke-width="2"/>
+            <!-- Marcações de grau a cada 10° -->
+            <g id="tickMarks"></g>
+            <!-- Letras cardeais -->
+            <text x="110" y="18" text-anchor="middle" fill="#4a6a4a" font-family="monospace" font-size="12" font-weight="bold">N</text>
+            <text x="110" y="210" text-anchor="middle" fill="#4a6a4a" font-family="monospace" font-size="12">S</text>
+            <text x="208" y="115" text-anchor="middle" fill="#4a6a4a" font-family="monospace" font-size="12">L</text>
+            <text x="12" y="115" text-anchor="middle" fill="#4a6a4a" font-family="monospace" font-size="12">O</text>
+          </svg>
+          <div class="compass-needle" id="compassNeedle">
+            <div class="needle-north"></div>
+            <div class="needle-south"></div>
+          </div>
+          <div class="compass-center"></div>
+        </div>
+
+        <div class="compass-az"><span id="azVal">---</span><span>°</span></div>
+        <div class="compass-dir" id="azDir">aguardando bússola</div>
+        <div class="compass-status" id="compassStatus">Toque em "Ativar bússola" abaixo</div>
+      </div>
+
+      <button class="lock-btn" id="lockBtn" onclick="toggleLock()">
+        <span id="lockIcon">🔓</span> <span id="lockText">TRAVAR AZIMUTE</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ALVO -->
+  <div class="card">
+    <div class="card-head">🎯 O que você está observando</div>
+    <div class="card-body">
+      <div class="target-row">
+        <input class="target-input" type="text" id="targetInput" placeholder="Ex: Fumaça no Pico, Animal, Torre...">
+      </div>
+    </div>
+  </div>
+
+  <!-- REGISTRAR -->
+  <button class="register-btn" id="registerBtn" onclick="registerObservation()" disabled>
+    <span>📡</span> REGISTRAR OBSERVAÇÃO
+  </button>
+
+  <!-- RECENTES -->
+  <div class="card">
+    <div class="card-head">🕐 Registros desta sessão</div>
+    <div class="card-body" id="recentList">
+      <div class="recent-empty">Nenhum registro ainda</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script type="module">
+import { initializeApp }                          from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getFirestore, collection, addDoc,
+         query, orderBy, limit,
+         onSnapshot, serverTimestamp }            from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+// ── FIREBASE CONFIG ──────────────────────────────────────
+const firebaseConfig = {
+  apiKey:            "AIzaSyBWrcnCf9b1XxiHaK5Anag6ipCYlISj8Oo",
+  authDomain:        "japi-triangulacao.firebaseapp.com",
+  projectId:         "japi-triangulacao",
+  storageBucket:     "japi-triangulacao.firebasestorage.app",
+  messagingSenderId: "751394813503",
+  appId:             "1:751394813503:web:3bae2114b376300a2e6a8a"
+};
+
+const app = initializeApp(firebaseConfig);
+const db  = collection(getFirestore(app), 'observacoes');
+
+// ── PONTOS PADRÃO ────────────────────────────────────────
+const PONTOS_PADRAO = [
+  { nome: 'Guto',      lat: -23.2802, lon: -46.9226, descricao: 'Trav Xango' },
+  { nome: 'Neco',      lat: -23.2806, lon: -46.9013, descricao: 'Paiol' },
+  { nome: 'Sta Clara', lat: -23.2524, lon: -46.8989, descricao: 'Vila' },
+  { nome: 'Baleia',    lat: -23.2221, lon: -46.8914, descricao: 'Pedra' },
+  { nome: 'Paiol',     lat: -23.2170, lon: -46.9400, descricao: 'Bar' },
+  { nome: 'Rua3',      lat: -23.2200, lon: -46.9350, descricao: 'Guarita' },
+];
+
+// ── STATE ────────────────────────────────────────────────
+let selectedObserver = null;   // { nome, lat, lon, isCustom }
+let currentAz        = null;   // azimute ao vivo
+let lockedAz         = null;   // azimute travado
+let isLocked         = false;
+let gpsCoords        = null;   // {lat, lon} para "Outro local"
+let compassActive    = false;
+let sessionRecords   = [];
+
+// ── DOM ──────────────────────────────────────────────────
+const azValEl       = document.getElementById('azVal');
+const azDirEl       = document.getElementById('azDir');
+const needleEl      = document.getElementById('compassNeedle');
+const compassStatus = document.getElementById('compassStatus');
+const lockBtn       = document.getElementById('lockBtn');
+const lockIcon      = document.getElementById('lockIcon');
+const lockText      = document.getElementById('lockText');
+const registerBtn   = document.getElementById('registerBtn');
+const syncDot       = document.getElementById('syncDot');
+const headerSub     = document.getElementById('headerSub');
+
+// ── FIREBASE STATUS ──────────────────────────────────────
+syncDot.className = 'sync-dot ok';
+headerSub.textContent = 'Online · japi-triangulacao';
+
+// ── BUILD OBSERVER GRID ──────────────────────────────────
+function buildGrid() {
+  const grid = document.getElementById('observerGrid');
+  grid.innerHTML = '';
+  PONTOS_PADRAO.forEach(p => {
+    const btn = document.createElement('button');
+    btn.className = 'obs-btn';
+    btn.innerHTML = `<b>${p.nome}</b><span>${p.descricao}</span>`;
+    btn.onclick = () => selectObserver(p, btn);
+    grid.appendChild(btn);
+  });
+  // Botão "Outro local"
+  const other = document.createElement('button');
+  other.className = 'obs-btn';
+  other.id = 'otherBtn';
+  other.innerHTML = `<b>Outro</b><span>captura GPS</span>`;
+  other.onclick = () => selectOther(other);
+  grid.appendChild(other);
+}
+
+function selectObserver(p, btn) {
+  document.querySelectorAll('.obs-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  document.getElementById('otherLocRow').style.display = 'none';
+  selectedObserver = { nome: p.nome, lat: p.lat, lon: p.lon, isCustom: false };
+  checkReady();
+}
+
+function selectOther(btn) {
+  document.querySelectorAll('.obs-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  document.getElementById('otherLocRow').style.display = 'flex';
+  selectedObserver = null;
+  startGPS();
+  checkReady();
+}
+
+// ── GPS (para "Outro local") ─────────────────────────────
+function startGPS() {
+  const badge = document.getElementById('gpsBadge');
+  badge.className = 'gps-badge searching';
+  badge.textContent = 'GPS...';
+  if (!navigator.geolocation) {
+    badge.className = 'gps-badge';
+    badge.textContent = 'sem GPS';
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(pos => {
+    gpsCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+    badge.className = 'gps-badge ok';
+    badge.textContent = `${gpsCoords.lat.toFixed(4)}, ${gpsCoords.lon.toFixed(4)}`;
+    const name = document.getElementById('otherName').value.trim() || 'Outro';
+    selectedObserver = { nome: name, lat: gpsCoords.lat, lon: gpsCoords.lon, isCustom: true };
+    checkReady();
+  }, () => {
+    badge.className = 'gps-badge';
+    badge.textContent = 'erro GPS';
+  }, { enableHighAccuracy: true, timeout: 10000 });
+}
+
+document.getElementById('otherName').addEventListener('input', function() {
+  if (selectedObserver?.isCustom) {
+    selectedObserver.nome = this.value.trim() || 'Outro';
+  }
+});
+
+// ── COMPASS ─────────────────────────────────────────────
+function azToDir(az) {
+  const dirs = [
+    [0,  'NORTE'], [22.5,'NNE'], [45,'NE'], [67.5,'ENE'],
+    [90, 'LESTE'], [112.5,'ESE'],[135,'SE'],[157.5,'SSE'],
+    [180,'SUL'],   [202.5,'SSO'],[225,'SO'],[247.5,'OSO'],
+    [270,'OESTE'], [292.5,'ONO'],[315,'NO'],[337.5,'NNO'],[360,'NORTE']
+  ];
+  for (let i = dirs.length-1; i >= 0; i--) {
+    if (az >= dirs[i][0] - 11.25) return dirs[i][1];
+  }
+  return 'NORTE';
+}
+
+function startCompass() {
+  if (compassActive) return;
+
+  // iOS 13+ precisa de permissão explícita
+  if (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
+    DeviceOrientationEvent.requestPermission().then(state => {
+      if (state === 'granted') attachCompass();
+      else {
+        compassStatus.className = 'compass-status error';
+        compassStatus.textContent = 'Permissão negada — verifique configurações do Safari';
+      }
+    });
+  } else {
+    attachCompass();
+  }
+}
+
+function attachCompass() {
+  compassActive = true;
+  compassStatus.className = 'compass-status active';
+  compassStatus.textContent = 'Bússola ativa — aponte para o alvo';
+
+  window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+  window.addEventListener('deviceorientation', handleOrientation, true);
+}
+
+let lastAlpha = null;
+function handleOrientation(e) {
+  if (isLocked) return;
+
+  let az = null;
+
+  // webkitCompassHeading = azimute real no iOS
+  if (e.webkitCompassHeading !== undefined && e.webkitCompassHeading !== null) {
+    az = e.webkitCompassHeading;
+  } else if (e.absolute && e.alpha !== null) {
+    az = (360 - e.alpha) % 360;
+  } else if (e.alpha !== null) {
+    az = (360 - e.alpha) % 360;
+  }
+
+  if (az === null) return;
+  az = ((az % 360) + 360) % 360;
+
+  // Suavização leve
+  if (lastAlpha !== null) {
+    let diff = az - lastAlpha;
+    if (diff >  180) diff -= 360;
+    if (diff < -180) diff += 360;
+    az = lastAlpha + diff * 0.3;
+    az = ((az % 360) + 360) % 360;
+  }
+  lastAlpha = az;
+
+  currentAz = az;
+  azValEl.textContent   = Math.round(az);
+  azDirEl.textContent   = azToDir(az);
+  needleEl.style.transform = `rotate(${az}deg)`;
+  checkReady();
+}
+
+// ── LOCK ────────────────────────────────────────────────
+function toggleLock() {
+  if (!compassActive) { startCompass(); return; }
+
+  if (!isLocked) {
+    if (currentAz === null) { toast('Aguarde a bússola estabilizar', 'error'); return; }
+    lockedAz = currentAz;
+    isLocked = true;
+    lockBtn.classList.add('locked');
+    lockIcon.textContent = '🔒';
+    lockText.textContent = `TRAVADO: ${Math.round(lockedAz)}°`;
+    compassStatus.textContent = `Azimute travado em ${Math.round(lockedAz)}°`;
+    compassStatus.className = 'compass-status';
+  } else {
+    isLocked  = false;
+    lockedAz  = null;
+    lockBtn.classList.remove('locked');
+    lockIcon.textContent = '🔓';
+    lockText.textContent = 'TRAVAR AZIMUTE';
+    compassStatus.className = 'compass-status active';
+    compassStatus.textContent = 'Bússola ativa — aponte para o alvo';
+  }
+  checkReady();
+}
+
+// Expõe para onclick
+window.toggleLock = toggleLock;
+
+// ── READY CHECK ─────────────────────────────────────────
+function checkReady() {
+  const hasObserver = selectedObserver !== null;
+  const hasAz       = isLocked && lockedAz !== null;
+  registerBtn.disabled = !(hasObserver && hasAz);
+}
+
+// ── REGISTER ────────────────────────────────────────────
+window.registerObservation = async function() {
+  const target = document.getElementById('targetInput').value.trim() || 'Alvo';
+  const az     = Math.round(lockedAz * 10) / 10;
+
+  registerBtn.disabled = true;
+  registerBtn.innerHTML = '<span>⏳</span> SALVANDO...';
+
+  try {
+    const doc = {
+      observador: selectedObserver.nome,
+      lat:        selectedObserver.lat,
+      lon:        selectedObserver.lon,
+      azimute:    az,
+      alvo:       target,
+      ts:         serverTimestamp(),
+      tsLocal:    new Date().toISOString(),
+    };
+
+    await addDoc(db, doc);
+
+    // Adiciona ao histórico local
+    sessionRecords.unshift({ ...doc, azimute: az });
+    renderRecent();
+
+    // Reset azimute (mantém observador)
+    isLocked  = false;
+    lockedAz  = null;
+    currentAz = null;
+    lockBtn.classList.remove('locked');
+    lockIcon.textContent = '🔓';
+    lockText.textContent = 'TRAVAR AZIMUTE';
+    azValEl.textContent  = '---';
+    azDirEl.textContent  = 'aponte para o próximo alvo';
+    document.getElementById('targetInput').value = '';
+    checkReady();
+
+    toast(`✅ ${selectedObserver.nome} → ${target} @ ${az}°`, 'success');
+  } catch(err) {
+    toast('Erro ao salvar: ' + err.message, 'error');
+    syncDot.className = 'sync-dot err';
+  }
+
+  registerBtn.innerHTML = '<span>📡</span> REGISTRAR OBSERVAÇÃO';
+  checkReady();
+};
+
+// ── RECENT LIST ─────────────────────────────────────────
+function renderRecent() {
+  const el = document.getElementById('recentList');
+  if (sessionRecords.length === 0) {
+    el.innerHTML = '<div class="recent-empty">Nenhum registro ainda</div>';
+    return;
+  }
+  el.innerHTML = sessionRecords.slice(0,8).map(r => `
+    <div class="recent-item">
+      <b>${r.observador}</b> → ${r.alvo}<br>
+      Az: ${r.azimute}° · ${new Date(r.tsLocal).toLocaleTimeString('pt-BR')}
+    </div>`).join('');
+}
+
+// ── TOAST ────────────────────────────────────────────────
+function toast(msg, type='info') {
+  const wrap = document.getElementById('toastWrap');
+  const el   = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+// ── DRAW TICK MARKS ─────────────────────────────────────
+function drawTicks() {
+  const g = document.getElementById('tickMarks');
+  const cx = 110, cy = 110, r = 100;
+  for (let i = 0; i < 360; i += 10) {
+    const rad  = (i - 90) * Math.PI / 180;
+    const len  = i % 90 === 0 ? 12 : i % 30 === 0 ? 8 : 5;
+    const x1   = cx + r * Math.cos(rad);
+    const y1   = cy + r * Math.sin(rad);
+    const x2   = cx + (r - len) * Math.cos(rad);
+    const y2   = cy + (r - len) * Math.sin(rad);
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+    line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+    line.setAttribute('stroke', i % 90 === 0 ? '#4ade80' : '#1e2e1e');
+    line.setAttribute('stroke-width', i % 90 === 0 ? '2' : '1');
+    g.appendChild(line);
+  }
+}
+
+// ── INIT ────────────────────────────────────────────────
+buildGrid();
+drawTicks();
+
+// Auto-start bússola no primeiro toque (iOS precisa de gesto do usuário)
+document.addEventListener('touchstart', startCompass, { once: true });
+document.addEventListener('click',      startCompass, { once: true });
+
+</script>
+</body>
+</html>
