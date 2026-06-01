@@ -129,6 +129,62 @@
   }
   .status-val { color: var(--accent); }
 
+  /* ── MOBILE RESPONSIVE ── */
+  @media (max-width: 700px) {
+    body { flex-direction: column; }
+
+    .sidebar {
+      width: 100% !important;
+      min-width: unset;
+      height: auto;
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+      flex-direction: row;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .sidebar-header { display: none; }
+    .sidebar-nav {
+      display: flex;
+      flex-direction: row;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 6px 8px;
+      gap: 4px;
+      flex: 1;
+      scrollbar-width: none;
+    }
+    .sidebar-nav::-webkit-scrollbar { display: none; }
+    .nav-section {
+      display: flex;
+      flex-direction: row;
+      gap: 4px;
+      margin-bottom: 0;
+      flex-shrink: 0;
+    }
+    .nav-label { display: none; }
+    .nav-btn {
+      padding: 7px 10px;
+      font-size: 11px;
+      white-space: nowrap;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      gap: 5px;
+    }
+    .nav-btn i { font-size: 11px; }
+    .sidebar-status { display: none; }
+
+    .map-wrap { flex: 1; min-height: 0; }
+
+    /* Instructions panel repositioned on mobile */
+    .instructions-panel {
+      bottom: 70px;
+      right: 8px;
+      left: 8px;
+      max-width: unset;
+    }
+  }
+
   /* ── MAP AREA ── */
   .map-wrap {
     flex: 1;
@@ -632,6 +688,20 @@
 
 <!-- MAP -->
 <div class="map-wrap">
+  <!-- Mobile status strip -->
+  <div id="mobileStatus" style="
+    display:none;
+    position:absolute;top:0;left:0;right:0;z-index:500;
+    background:rgba(13,17,23,0.85);backdrop-filter:blur(4px);
+    padding:5px 12px;font-family:var(--mono);font-size:11px;
+    color:var(--text3);display:flex;gap:12px;align-items:center;
+    border-bottom:1px solid var(--border);
+  ">
+    <span class="live-badge" id="liveBadgeMobile"><span class="live-dot"></span>LIVE</span>
+    <span>Pts: <span style="color:var(--accent)" id="statPtsMobile">0</span></span>
+    <span>Alvos: <span style="color:var(--accent4)" id="statCentroidMobile">0</span></span>
+    <a href="campo.html" target="_blank" style="margin-left:auto;color:var(--accent2);text-decoration:none;font-size:11px;">📱 Campo →</a>
+  </div>
   <div id="map"></div>
 
   <!-- Instructions toggle (bottom-right over map) -->
@@ -1011,6 +1081,18 @@ function init() {
   buildDefaultPtsGrid();
   setupFormListeners();
   startFirebaseSync();
+  setupMobileLayout();
+}
+
+function setupMobileLayout() {
+  const isMobile = window.innerWidth <= 700;
+  const strip = document.getElementById('mobileStatus');
+  if (strip) strip.style.display = isMobile ? 'flex' : 'none';
+  // Sync live badge to mobile strip too
+  if (isMobile) {
+    // Offset map top so strip doesn't cover it
+    document.getElementById('map').style.paddingTop = '32px';
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1062,8 +1144,10 @@ function startFirebaseSync() {
 }
 
 function updateLiveBadge(count) {
-  document.getElementById('liveBadge').innerHTML =
-    `<span class="live-dot"></span>LIVE · ${count} obs`;
+  const html = `<span class="live-dot"></span>LIVE · ${count}`;
+  document.getElementById('liveBadge').innerHTML = html;
+  const mob = document.getElementById('liveBadgeMobile');
+  if (mob) mob.innerHTML = html;
 }
 
 // Deletar observação do Firebase (para pontos vindos do Firebase)
@@ -1689,9 +1773,17 @@ function confirmClear() {
 }
 
 function updateStatus() {
-  document.getElementById('statPts').textContent    = STATE.pontos.length;
-  document.getElementById('statInter').textContent  = STATE.interseccoes.length;
-  document.getElementById('statCentroid').textContent = Object.keys(STATE.centroidesPorAlvo).length;
+  const nPts  = STATE.pontos.length;
+  const nInter = STATE.interseccoes.length;
+  const nCent = Object.keys(STATE.centroidesPorAlvo).length;
+  document.getElementById('statPts').textContent     = nPts;
+  document.getElementById('statInter').textContent   = nInter;
+  document.getElementById('statCentroid').textContent = nCent;
+  // Mobile strip
+  const mPts  = document.getElementById('statPtsMobile');
+  const mCent = document.getElementById('statCentroidMobile');
+  if (mPts)  mPts.textContent  = nPts;
+  if (mCent) mCent.textContent = nCent;
 }
 
 function toast(msg, type='info') {
