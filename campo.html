@@ -32,18 +32,14 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 .card-body{padding:12px 14px}
 
 /* ── OBSERVER ── */
-.observer-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:8px}
+.observer-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:4px}
 .obs-btn{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 8px;cursor:pointer;text-align:center;transition:border-color 0.15s,background 0.15s;color:var(--text2)}
 .obs-btn b{display:block;font-size:13px;color:var(--text);margin-bottom:2px}
 .obs-btn span{font-size:10px;font-family:var(--mono);color:var(--text3)}
 .obs-btn.selected{border-color:var(--accent);background:rgba(74,222,128,0.08)}
 .obs-btn.selected b{color:var(--accent)}
 .obs-btn.selected span{color:rgba(74,222,128,0.5)}
-.other-loc-row{display:flex;gap:8px;align-items:center;margin-top:4px}
-.other-loc-row input{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--sans);font-size:14px;padding:8px 10px;outline:none}
-.other-loc-row input:focus{border-color:var(--accent2)}
-.other-loc-row input::placeholder{color:var(--text3)}
-.gps-badge{font-size:10px;font-family:var(--mono);padding:4px 8px;border-radius:6px;background:var(--bg);border:1px solid var(--border);color:var(--text3);white-space:nowrap}
+.gps-badge{font-size:10px;font-family:var(--mono);padding:5px 9px;border-radius:6px;background:var(--bg);border:1px solid var(--border);color:var(--text3);white-space:nowrap;line-height:1.4;text-align:center}
 .gps-badge.ok{border-color:var(--accent);color:var(--accent)}
 .gps-badge.searching{border-color:var(--accent2);color:var(--accent2);animation:pulse 1.5s infinite}
 
@@ -164,14 +160,31 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 
 <div class="main">
 
-  <!-- OBSERVADOR -->
+  <!-- OBSERVADOR — GPS first -->
   <div class="card">
-    <div class="card-head">📍 Quem está observando</div>
+    <div class="card-head">📍 Sua posição</div>
     <div class="card-body">
-      <div class="observer-grid" id="observerGrid"></div>
-      <div class="other-loc-row" id="otherLocRow" style="display:none;">
-        <input type="text" id="otherName" placeholder="Nome do local">
-        <div class="gps-badge" id="gpsBadge">GPS...</div>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;">
+        <div style="flex:1;">
+          <input type="text" id="observerName" placeholder="Seu nome / identificação"
+            style="width:100%;background:var(--bg);border:1px solid var(--border);
+                   border-radius:8px;color:var(--text);font-family:var(--sans);
+                   font-size:15px;padding:10px 12px;outline:none;"
+            oninput="onObserverNameInput(this.value)">
+        </div>
+        <div class="gps-badge" id="gpsBadge" style="flex-shrink:0;">📡 GPS...</div>
+      </div>
+
+      <!-- Atalho: vizinhos cadastrados (colapsável) -->
+      <div>
+        <button onclick="toggleKnownPts()" style="
+          background:none;border:none;color:var(--text3);font-family:var(--mono);
+          font-size:11px;cursor:pointer;padding:0;display:flex;align-items:center;gap:5px;">
+          <span id="knownPtsArrow">▶</span> usar local cadastrado
+        </button>
+        <div id="knownPtsGrid" style="display:none;margin-top:8px;">
+          <div class="observer-grid" id="observerGrid"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -366,9 +379,10 @@ const elevDisplay  = document.getElementById('elevDisplay');
 const miniNeedle   = document.getElementById('miniNeedle');
 const compassStatus= document.getElementById('compassStatus');
 
-// ── OBSERVER GRID ────────────────────────────────────────
+// ── OBSERVER: GPS-FIRST ──────────────────────────────────
 function buildGrid() {
   const grid = document.getElementById('observerGrid');
+  grid.innerHTML = '';
   PONTOS_PADRAO.forEach(p => {
     const btn = document.createElement('button');
     btn.className = 'obs-btn';
@@ -376,49 +390,70 @@ function buildGrid() {
     btn.onclick = () => {
       document.querySelectorAll('.obs-btn').forEach(b => b.classList.remove('selected'));
       btn.classList.add('selected');
-      document.getElementById('otherLocRow').style.display = 'none';
-      selectedObserver = { nome:p.nome, lat:p.lat, lon:p.lon };
+      // Use preset coords but keep GPS running for accuracy info
+      selectedObserver = { nome:p.nome, lat:p.lat, lon:p.lon, isPreset:true };
+      document.getElementById('observerName').value = p.nome;
       hudObsEl.textContent = p.nome;
+      // Collapse grid after selection
+      document.getElementById('knownPtsGrid').style.display = 'none';
+      document.getElementById('knownPtsArrow').textContent = '▶';
       checkReady();
     };
     grid.appendChild(btn);
   });
-  const other = document.createElement('button');
-  other.className = 'obs-btn';
-  other.innerHTML = `<b>Outro</b><span>captura GPS</span>`;
-  other.onclick = () => {
-    document.querySelectorAll('.obs-btn').forEach(b => b.classList.remove('selected'));
-    other.classList.add('selected');
-    document.getElementById('otherLocRow').style.display = 'flex';
-    selectedObserver = null;
-    startGPS();
-    checkReady();
-  };
-  grid.appendChild(other);
 }
 
-// ── GPS ──────────────────────────────────────────────────
+window.toggleKnownPts = function() {
+  const grid  = document.getElementById('knownPtsGrid');
+  const arrow = document.getElementById('knownPtsArrow');
+  const open  = grid.style.display === 'none';
+  grid.style.display  = open ? 'block' : 'none';
+  arrow.textContent   = open ? '▼' : '▶';
+};
+
+window.onObserverNameInput = function(val) {
+  if (selectedObserver) {
+    selectedObserver.nome = val || 'Obs';
+  } else if (gpsCoords) {
+    selectedObserver = { nome: val || 'Obs', lat: gpsCoords.lat, lon: gpsCoords.lon };
+  }
+  hudObsEl.textContent = val || '';
+  checkReady();
+};
+
+// ── GPS — sempre ativo, fonte primária de posição ─────────
 function startGPS() {
   const badge = document.getElementById('gpsBadge');
   badge.className = 'gps-badge searching';
-  badge.textContent = 'GPS...';
-  navigator.geolocation?.getCurrentPosition(pos => {
-    gpsCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-    badge.className = 'gps-badge ok';
-    badge.textContent = `${gpsCoords.lat.toFixed(4)}, ${gpsCoords.lon.toFixed(4)}`;
-    const name = document.getElementById('otherName').value.trim() || 'Outro';
-    selectedObserver = { nome:name, lat:gpsCoords.lat, lon:gpsCoords.lon };
-    hudObsEl.textContent = name;
-    checkReady();
-  }, () => { badge.className='gps-badge'; badge.textContent='erro GPS'; },
-  { enableHighAccuracy:true, timeout:10000 });
-}
-document.getElementById('otherName').addEventListener('input', function() {
-  if (selectedObserver?.isCustom) {
-    selectedObserver.nome = this.value.trim() || 'Outro';
-    hudObsEl.textContent  = selectedObserver.nome;
+  badge.textContent = '📡 buscando...';
+
+  if (!navigator.geolocation) {
+    badge.className = 'gps-badge';
+    badge.textContent = 'sem GPS';
+    return;
   }
-});
+
+  // watchPosition: atualiza continuamente
+  navigator.geolocation.watchPosition(pos => {
+    const acc = Math.round(pos.coords.accuracy);
+    gpsCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+
+    badge.className   = 'gps-badge ok';
+    badge.innerHTML   = `${gpsCoords.lat.toFixed(5)}<br>${gpsCoords.lon.toFixed(5)}<br>±${acc}m`;
+
+    // Always update selectedObserver coords from GPS (unless preset was chosen)
+    const name = document.getElementById('observerName').value.trim() || null;
+    if (!selectedObserver?.isPreset) {
+      selectedObserver = name
+        ? { nome: name, lat: gpsCoords.lat, lon: gpsCoords.lon }
+        : null;
+    }
+    checkReady();
+  }, () => {
+    badge.className   = 'gps-badge';
+    badge.textContent = '⚠️ GPS falhou';
+  }, { enableHighAccuracy: true, maximumAge: 5000 });
+}
 
 // ── CAMERA ───────────────────────────────────────────────
 async function startCamera() {
@@ -670,15 +705,28 @@ async function uploadPhoto() {
 
 // ── READY CHECK ──────────────────────────────────────────
 function checkReady() {
-  registerBtn.disabled = !(selectedObserver && (capturedAz!==null || currentAz!==null));
+  const hasName = document.getElementById('observerName').value.trim().length > 0;
+  const hasPos  = selectedObserver !== null || gpsCoords !== null;
+  const hasAz   = capturedAz !== null || currentAz !== null;
+  registerBtn.disabled = !(hasName && hasPos && hasAz);
 }
 
 // ── REGISTER ─────────────────────────────────────────────
 window.registerObservation = async function() {
   const target   = document.getElementById('targetInput').value.trim() || 'Alvo';
-  const azSrc    = capturedAz  !== null ? capturedAz  : currentAz;
-  const elevSrc  = capturedElev!== null ? capturedElev: currentElev;
+  const azSrc    = capturedAz   !== null ? capturedAz   : currentAz;
+  const elevSrc  = capturedElev !== null ? capturedElev : currentElev;
   const az       = Math.round(azSrc * 10) / 10;
+  const nameVal  = document.getElementById('observerName').value.trim() || 'Obs';
+
+  // Always use live GPS coords if available (unless preset chosen)
+  if (selectedObserver && !selectedObserver.isPreset && gpsCoords) {
+    selectedObserver.lat = gpsCoords.lat;
+    selectedObserver.lon = gpsCoords.lon;
+  } else if (!selectedObserver && gpsCoords) {
+    selectedObserver = { nome: nameVal, lat: gpsCoords.lat, lon: gpsCoords.lon };
+  }
+  if (selectedObserver) selectedObserver.nome = nameVal;
 
   registerBtn.disabled = true;
   registerBtn.innerHTML = '<span>⏳</span> SALVANDO...';
@@ -747,10 +795,14 @@ document.getElementById('targetInput').addEventListener('input', function() {
 
 // ── INIT ─────────────────────────────────────────────────
 buildGrid();
+startGPS();   // GPS starts immediately, no interaction needed
 
-// Start camera on first user interaction (iOS requires gesture)
+// Camera starts on first user interaction (iOS requires gesture)
 document.addEventListener('touchstart', startCamera, { once:true });
 document.addEventListener('click',      startCamera, { once:true });
+
+// Name field triggers checkReady
+document.getElementById('observerName').addEventListener('input', () => checkReady());
 
 </script>
 </body>
