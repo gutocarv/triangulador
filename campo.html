@@ -12,6 +12,47 @@
   --text:#e8f5e8; --text2:#86a886; --text3:#4a6a4a; --danger:#f87171;
   --mono:'Space Mono',monospace; --sans:'DM Sans',sans-serif;
 }
+
+/* ── MODO CAMPO (alto contraste / sol) ── */
+body.field-mode {
+  --bg:#000; --panel:#111; --border:#444;
+  --accent:#FFD700; --accent2:#FF8C00; --accent3:#FF4500; --accent4:#FFD700;
+  --text:#fff; --text2:#eee; --text3:#aaa; --danger:#ff4444;
+}
+body.field-mode .cam-az     { font-size:38px !important; color:#FFD700 !important; -webkit-text-stroke:1px #000; }
+body.field-mode .cam-elev   { color:#FF8C00 !important; font-size:14px !important; }
+body.field-mode .cam-obs    { color:#fff !important; font-size:12px !important; }
+body.field-mode .horizon    { background:rgba(255,140,0,0.8) !important; }
+body.field-mode .horizon::before,
+body.field-mode .horizon::after { background:#FF8C00 !important; }
+body.field-mode .xhair-h,
+body.field-mode .xhair-v    { background:rgba(255,215,0,0.95) !important; }
+body.field-mode .xhair-ring { border-color:rgba(255,215,0,0.7) !important; }
+body.field-mode .corner     { border-color:rgba(255,215,0,0.9) !important; }
+body.field-mode .shutter    { border-color:#FFD700 !important; box-shadow:0 0 0 3px rgba(255,215,0,0.5) !important; }
+body.field-mode .name-input,
+body.field-mode .target-input { border-color:#555 !important; font-size:18px !important; }
+body.field-mode .gps-row    { font-size:13px !important; color:#aaa !important; }
+body.field-mode .next-btn   { background:#FFD700 !important; font-size:16px !important; }
+body.field-mode .data-label { font-size:13px !important; color:#aaa !important; }
+body.field-mode .data-val   { font-size:16px !important; }
+body.field-mode .register-btn { background:#FFD700 !important; font-size:16px !important; }
+
+/* Toggle button */
+.field-toggle {
+  position:fixed; top:12px; right:14px; z-index:9999;
+  background:none; border:1px solid var(--border);
+  border-radius:20px; padding:5px 10px;
+  font-family:var(--mono); font-size:11px;
+  color:var(--text3); cursor:pointer;
+  display:flex; align-items:center; gap:5px;
+  transition:all 0.2s;
+}
+.field-toggle:hover { border-color:var(--accent); color:var(--accent); }
+body.field-mode .field-toggle {
+  background:#FFD700; border-color:#FFD700;
+  color:#000; font-weight:700;
+}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{width:100%;height:100%;overflow:hidden;font-family:var(--sans);background:var(--bg);color:var(--text)}
 
@@ -294,17 +335,22 @@ input[type=range].zoom-slider{
 </head>
 <body>
 
+<!-- Field mode toggle — visible on all screens -->
+<button class="field-toggle" id="fieldToggle" onclick="toggleFieldMode()">
+  <span id="fieldToggleIcon">☀️</span> <span id="fieldToggleLabel">CAMPO</span>
+</button>
+
 <!-- ═══════════════════════════════════
      SCREEN 1 — IDENTIDADE
 ═══════════════════════════════════ -->
 <div class="screen active" id="screenId">
   <div class="s1-header">
     <div class="s1-title">🌿 JAPI · CAMPO</div>
-    <div class="s1-sub">Quem está observando?</div>
+    <div class="s1-sub">Dê um nome para este registro</div>
   </div>
   <div class="s1-body">
     <input class="name-input" type="text" id="nameInput"
-           placeholder="Seu nome / identificação"
+           placeholder="local / seu nome"
            autocomplete="off" autocorrect="off" spellcheck="false">
     <div class="gps-row">
       <div class="gps-dot" id="gpsDot"></div>
@@ -523,6 +569,15 @@ function startGPS() {
     gpsCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude, acc: Math.round(pos.coords.accuracy) };
     $('gpsDot').className  = 'gps-dot ok';
     $('gpsText').textContent = `${gpsCoords.lat.toFixed(5)}, ${gpsCoords.lon.toFixed(5)}  ±${gpsCoords.acc}m`;
+
+    // Auto-fill name with coords + time if field still empty or was auto-filled before
+    const nameEl = $('nameInput');
+    const isAutoFilled = nameEl.dataset.auto === '1';
+    if (!nameEl.value || isAutoFilled) {
+      const t = new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+      nameEl.value = `${gpsCoords.lat.toFixed(4)}, ${gpsCoords.lon.toFixed(4)} · ${t}`;
+      nameEl.dataset.auto = '1';
+    }
     checkNextReady();
   }, () => {
     $('gpsDot').className  = 'gps-dot';
@@ -559,6 +614,7 @@ window.togglePresets = function() {
 
 $('nameInput').addEventListener('input', () => {
   selectedPreset = null;
+  $('nameInput').dataset.auto = '0';  // user took over
   document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('selected'));
   checkNextReady();
 });
@@ -568,6 +624,7 @@ function checkNextReady() {
   $('nextBtn').disabled = !hasName;
 }
 
+window.toggleFieldMode = toggleFieldMode;
 window.goToId = function() {
   showScreen('screenId');
 };
@@ -894,6 +951,23 @@ function renderRecent() {
       <b>${r.name}</b> → ${r.target}<br>
       Az: ${r.az}° · ${new Date(r.tsLocal).toLocaleTimeString('pt-BR')}${r.hasFoto?' · 📷':''}
     </div>`).join('');
+}
+
+// ── FIELD MODE TOGGLE ────────────────────────────────────
+function toggleFieldMode() {
+  const on = document.body.classList.toggle('field-mode');
+  localStorage.setItem('fieldMode', on ? '1' : '0');
+  $('fieldToggleIcon').textContent  = on ? '🌙' : '☀️';
+  $('fieldToggleLabel').textContent = on ? 'NOTURNO' : 'CAMPO';
+}
+
+// Restore saved preference
+if (localStorage.getItem('fieldMode') === '1') {
+  document.body.classList.add('field-mode');
+  document.addEventListener('DOMContentLoaded', () => {
+    $('fieldToggleIcon').textContent  = '🌙';
+    $('fieldToggleLabel').textContent = 'NOTURNO';
+  });
 }
 
 // ── INIT ──────────────────────────────────────────────────
