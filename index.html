@@ -891,7 +891,8 @@
 // ═══════════════════════════════════════════════════════════
 import { initializeApp }                               from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getFirestore, collection, onSnapshot,
-         query, orderBy, deleteDoc, doc }              from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+         query, orderBy, deleteDoc,
+         doc, getDocs }                     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 const firebaseConfig = {
   apiKey:            "AIzaSyBWrcnCf9b1XxiHaK5Anag6ipCYlISj8Oo",
@@ -1102,12 +1103,16 @@ let fbUnsubscribe = null;
 let lastFbCount   = 0;
 
 function startFirebaseSync() {
+  // Carrega últimas 8h — filtragem no cliente para evitar índice composto no Firestore
   const q = query(obsCol, orderBy('tsLocal', 'desc'));
   fbUnsubscribe = onSnapshot(q, (snapshot) => {
     // Converte docs do Firestore para o formato STATE.pontos
+    const cutoff8h = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString();
     const pontosFirebase = [];
     snapshot.forEach(d => {
       const data = d.data();
+      // Ignora observações com mais de 8 horas
+      if (data.tsLocal && data.tsLocal < cutoff8h) return;
       pontosFirebase.push({
         id:       d.id,
         nome:     data.observador || 'Desconhecido',
@@ -1144,7 +1149,7 @@ function startFirebaseSync() {
 }
 
 function updateLiveBadge(count) {
-  const html = `<span class="live-dot"></span>LIVE · ${count}`;
+  const html = `<span class="live-dot"></span>LIVE · ${count} <span style="color:var(--text3);font-weight:400;">8h</span>`;
   document.getElementById('liveBadge').innerHTML = html;
   const mob = document.getElementById('liveBadgeMobile');
   if (mob) mob.innerHTML = html;
@@ -1797,13 +1802,32 @@ function confirmAction(title, msg, cb) {
   openModal('confirmModal');
 }
 
+// Admin password — change this to something only you know
+const ADMIN_PASS = 'japi2024';
+
 function confirmClear() {
-  confirmAction('Limpar todos os dados',
-    `Remover ${STATE.pontos.length} pontos e ${STATE.interseccoes.length} intersecções?`,
-    () => {
+  // Ask for admin password first
+  const pass = prompt('Senha de admin para limpar todos os dados:');
+  if (pass === null) return;  // cancelled
+  if (pass !== ADMIN_PASS) {
+    toast('Senha incorreta', 'error');
+    return;
+  }
+  confirmAction('⚠️ Limpar TODOS os dados',
+    `Isso vai apagar ${STATE.pontos.filter(p=>p.fromFirebase).length} observações do Firebase e limpar o mapa. Não pode ser desfeito.`,
+    async () => {
+      // Delete all docs from Firebase
+      try {
+        const snapshot = await getDocs(obsCol);
+        const deletes  = [];
+        snapshot.forEach(d => deletes.push(deleteDoc(doc(fbDb, 'observacoes', d.id))));
+        await Promise.all(deletes);
+        toast(`🗑️ ${deletes.length} observações apagadas do Firebase`, 'success');
+      } catch(e) {
+        toast('Erro ao apagar do Firebase: ' + e.message, 'error');
+      }
       STATE.pontos = []; STATE.interseccoes = []; STATE.centroidesPorAlvo = {};
       clearMap(); updateStatus();
-      toast('Dados limpos', 'info');
     }
   );
 }
