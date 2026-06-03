@@ -333,11 +333,11 @@ input[type=range].zoom-slider{
 @keyframes toastIn{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
 </style>
 </head>
-<body>
+<body class="field-mode">
 
 <!-- Field mode toggle — visible on all screens -->
 <button class="field-toggle" id="fieldToggle" onclick="toggleFieldMode()">
-  <span id="fieldToggleIcon">☀️</span> <span id="fieldToggleLabel">CAMPO</span>
+  <span id="fieldToggleIcon">🌙</span> <span id="fieldToggleLabel">NOTURNO</span>
 </button>
 
 <!-- ═══════════════════════════════════
@@ -961,12 +961,18 @@ function toggleFieldMode() {
   $('fieldToggleLabel').textContent = on ? 'NOTURNO' : 'CAMPO';
 }
 
-// Restore saved preference
-if (localStorage.getItem('fieldMode') === '1') {
+// Restore saved preference — default is field-mode ON
+// Only disable if user explicitly turned it off
+if (localStorage.getItem('fieldMode') === '0') {
+  document.body.classList.remove('field-mode');
+} else {
+  // Default or previously on
   document.body.classList.add('field-mode');
   document.addEventListener('DOMContentLoaded', () => {
-    $('fieldToggleIcon').textContent  = '🌙';
-    $('fieldToggleLabel').textContent = 'NOTURNO';
+    if ($('fieldToggleIcon')) {
+      $('fieldToggleIcon').textContent  = '🌙';
+      $('fieldToggleLabel').textContent = 'NOTURNO';
+    }
   });
 }
 
