@@ -659,6 +659,13 @@
     </div>
 
     <div class="nav-section">
+      <div class="nav-label">Mapa</div>
+      <button class="nav-btn" id="satBtn" onclick="toggleSatellite()">
+        <i class="fas fa-satellite"></i> Satélite
+      </button>
+    </div>
+
+    <div class="nav-section">
       <div class="nav-label">Dados</div>
       <button class="nav-btn" onclick="shareData()">
         <i class="fas fa-share-nodes"></i> Compartilhar link
@@ -1064,9 +1071,33 @@ async function handleOcrFile(input) {
 // ═══════════════════════════════════════════════════════════
 function init() {
   map = L.map('map', { zoomControl: true }).setView([-23.26, -46.92], 12);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    attribution: '© <a href="https://carto.com/">CARTO</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-  }).addTo(map);
+  const layerStreet = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© <a href="https://carto.com/">CARTO</a> © OpenStreetMap contributors'
+  });
+  const layerSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '© <a href="https://www.esri.com/">Esri</a> World Imagery'
+  });
+  let satActive = false;
+  layerStreet.addTo(map);
+
+  window.toggleSatellite = function() {
+    satActive = !satActive;
+    if (satActive) {
+      map.removeLayer(layerStreet);
+      layerSat.addTo(map);
+    } else {
+      map.removeLayer(layerSat);
+      layerStreet.addTo(map);
+    }
+    const btn = document.getElementById('satBtn');
+    if (btn) {
+      btn.style.background = satActive ? 'var(--accent4)' : '';
+      btn.style.color      = satActive ? '#000' : '';
+      btn.innerHTML        = satActive
+        ? '<i class="fas fa-map"></i> Mapa'
+        : '<i class="fas fa-satellite"></i> Satélite';
+    }
+  };
 
   // Carrega dados da URL (compartilhamento)
   const urlData = loadFromUrl();
@@ -1121,6 +1152,7 @@ function startFirebaseSync() {
         azimute:  data.azimute,
         elevacao: data.elevacao ?? null,
         alvo:     data.alvo || 'Alvo',
+        alvoTipo: data.alvoTipo || 'outro',
         fotoUrl:  data.fotoUrl || null,
         ts:       data.tsLocal || '',
         fromFirebase: true,
@@ -1229,6 +1261,21 @@ function anguloBetween(az1, az2) {
   if (diff > 180) diff = 360 - diff;
   return diff;
 }
+
+// ═══════════════════════════════════════════════════════════
+//  FILTER BY TIPO
+// ═══════════════════════════════════════════════════════════
+let activeFilter = 'all';
+
+window.setFilter = function(tipo) {
+  activeFilter = tipo;
+  ['all','balao','fogo','outro'].forEach(t => {
+    const btn = document.getElementById('filter' + t.charAt(0).toUpperCase() + t.slice(1));
+    if (btn) btn.style.fontWeight = t === tipo ? '700' : '400';
+    if (btn) btn.style.background = t === tipo ? 'var(--panel2)' : '';
+  });
+  renderMap(true);
+};
 
 // ═══════════════════════════════════════════════════════════
 //  AUTO-UPDATE: chama após qualquer mudança nos pontos
@@ -1369,6 +1416,38 @@ function runTriangulation(silent) {
     candidateIdx++;
   }
 
+  // ── ALTITUDE 3D: para cada candidato com 2+ obs com elevação ──
+  for (const key of Object.keys(STATE.centroidesPorAlvo)) {
+    const cand    = STATE.centroidesPorAlvo[key];
+    const members = Object.values(clusters).find(m =>
+      Math.abs(m.reduce((s,r)=>s+r.lat,0)/m.length - cand.lat) < 0.0001
+    );
+    if (!members) continue;
+
+    // Coleta pares com elevação válida
+    const altSamples = [];
+    for (const r of members) {
+      for (const pt of [r.p1, r.p2]) {
+        if (pt.elevacao !== null && pt.elevacao !== undefined) {
+          // Distância horizontal ao candidato (metros)
+          const dH = haversine(pt.lat, pt.lon, cand.lat, cand.lon);
+          // Altitude do alvo = altitude_observador + dH * tan(elevação)
+          const elevRad = deg2rad(Math.abs(pt.elevacao));
+          const altObs  = 0; // GPS altitude — zero se não disponível
+          const altAlvo = altObs + dH * Math.tan(elevRad);
+          if (altAlvo > 0 && altAlvo < 15000) altSamples.push(altAlvo);
+        }
+      }
+    }
+
+    if (altSamples.length >= 2) {
+      const altMedia = altSamples.reduce((a,b)=>a+b,0) / altSamples.length;
+      const altRms   = Math.sqrt(altSamples.reduce((s,a)=>s+(a-altMedia)**2,0)/altSamples.length);
+      cand.altitude    = Math.round(altMedia);
+      cand.altitudeRms = Math.round(altRms);
+    }
+  }
+
   updateStatus();
   if (!silent) toast(
     `✅ ${STATE.interseccoes.length} intersecções → ${Object.keys(STATE.centroidesPorAlvo).length} alvo(s) candidato(s)`,
@@ -1398,8 +1477,13 @@ function renderMap(silent) {
 
   const palette = ['#58a6ff','#3fb950','#f78166','#e3b341','#bc8cff','#79c0ff','#ffa657','#ff7b72'];
 
+  // Aplica filtro por tipo
+  const visiblePts = activeFilter === 'all'
+    ? STATE.pontos
+    : STATE.pontos.filter(p => (p.alvoTipo || 'outro') === activeFilter);
+
   // Pontos de observação + raio de azimute
-  STATE.pontos.forEach((p, i) => {
+  visiblePts.forEach((p, i) => {
     const cor = palette[i % palette.length];
     const dist = p.distancia || 8000;
     const [latF, lonF] = azimuthPoint(p.lat, p.lon, p.azimute, dist);
@@ -1427,12 +1511,17 @@ function renderMap(silent) {
         </a>
       </div>` : '';
 
-    // Marcador maior se tiver foto
+    // Color by alvoTipo
+    const tipoCor = p.alvoTipo === 'balao' ? '#e3b341'
+                  : p.alvoTipo === 'fogo'  ? '#f85149'
+                  : cor;
+    const tipoIcon = p.alvoTipo === 'balao' ? '🎈'
+                   : p.alvoTipo === 'fogo'  ? '🔥' : '👁️';
     const radius = p.fotoUrl ? 9 : 7;
     const mk = L.circleMarker([p.lat, p.lon], {
-      radius, color: cor, fillColor: cor, fillOpacity: 1, weight: 2
+      radius, color: tipoCor, fillColor: tipoCor, fillOpacity: 1, weight: 2
     }).bindPopup(`<b>${p.nome}</b><br>
-      Az: ${p.azimute.toFixed(1)}° → <b>${p.alvo}</b>${elevHtml}<br>
+      ${tipoIcon} Az: ${p.azimute.toFixed(1)}° → <b>${p.alvo}</b>${elevHtml}<br>
       ${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}
       ${p.distancia ? `<br>Dist: ${p.distancia}m` : ''}
       ${fotoHtml}`, { maxWidth: 240, maxHeight: 320 });
@@ -1440,7 +1529,7 @@ function renderMap(silent) {
 
     const ln = L.polyline([[p.lat, p.lon],[latF, lonF]], {
       color: cor, weight: 2, opacity: 0.65, dashArray: '6 5'
-    }).bindTooltip(`${p.nome} → ${p.alvo} | Az: ${p.azimute.toFixed(1)}°`);
+    }).bindTooltip(`${tipoIcon} ${p.nome} → ${p.alvo} | Az: ${p.azimute.toFixed(1)}°`);
     ln.addTo(map); lines.push(ln);
   });
 
@@ -1470,10 +1559,13 @@ function renderMap(silent) {
         className: '',
         iconAnchor: [0, 0]
       })
-    }).bindPopup(`<b>🎯 Alvo candidato: ${cand.alvo}</b><br>
+    const altHtml = cand.altitude
+      ? `<br>Altitude est.: <b style="color:#60a5fa">${cand.altitude}m</b> ±${cand.altitudeRms}m`
+      : '';
+    }).bindPopup(`<b>🎯 ${cand.alvo}</b><br>
       ${cand.lat.toFixed(6)}, ${cand.lon.toFixed(6)}<br>
       Pares: ${cand.nObs} &nbsp;|&nbsp; Pontos: ${cand.pontos.join(', ')}<br>
-      Erro RMS: <b>${cand.rms}m</b>`);
+      Erro RMS: <b>${cand.rms}m</b>${altHtml}`);
     mk.addTo(map); markers.push(mk);
   });
 
@@ -1642,8 +1734,8 @@ function refreshViewData() {
             </div>
           </div>
           <div class="point-card-meta">
-            ${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}<br>
             Az: ${p.azimute.toFixed(1)}° → <span style="color:var(--accent2)">${p.alvo}</span>
+            ${p.elevacao !== null && p.elevacao !== undefined ? `· Elev: ${p.elevacao}°` : ''}
             ${p.distancia ? `<br>Dist: ${p.distancia}m` : ''}
           </div>
         </div>`;
@@ -1663,14 +1755,21 @@ function refreshViewData() {
         const rmsCls = rmsF < 50 ? 'precision-good' : rmsF < 200 ? 'precision-ok' : 'precision-bad';
         interDiv.innerHTML += `
           <div class="inter-card" style="border-color:rgba(227,179,65,0.4);background:rgba(227,179,65,0.05);margin-bottom:10px;">
-            <div class="inter-card-name" style="color:var(--accent4);">
-              🎯 ${cand.alvo}
+            <div class="inter-card-name" style="color:var(--accent4);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              🎯
+              <input value="${cand.alvo}"
+                style="background:transparent;border:none;border-bottom:1px solid rgba(227,179,65,0.4);
+                       color:var(--accent4);font-family:var(--mono);font-size:12px;font-weight:700;
+                       outline:none;width:140px;padding:1px 2px;"
+                onchange="renameCandidato('${key}', this.value)"
+                title="Clique para renomear">
               <span class="centroid-badge">ALVO CANDIDATO</span>
             </div>
             <div class="inter-card-meta">
               📍 ${cand.lat.toFixed(6)}, ${cand.lon.toFixed(6)}<br>
               Pares: ${cand.nObs} &nbsp;·&nbsp; Pontos: ${cand.pontos.join(', ')}<br>
               Erro RMS: <span class="${rmsCls}"><b>${cand.rms}m</b></span>
+              ${cand.altitude ? `<br>Altitude est.: <b style="color:var(--accent2)">${cand.altitude}m</b> ±${cand.altitudeRms}m` : ''}
             </div>
           </div>`;
       });
@@ -1686,7 +1785,6 @@ function refreshViewData() {
           <div class="inter-card" style="margin-bottom:6px;padding:9px 12px;">
             <div class="inter-card-meta" style="line-height:1.9;">
               <b style="color:var(--text);">${inter.pontos.join(' x ')}</b><br>
-              📍 ${inter.lat.toFixed(6)}, ${inter.lon.toFixed(6)}<br>
               Ângulo: <span class="${angCls}">${inter.angulo}°</span>
               &nbsp;·&nbsp; Peso: ${inter.peso}
             </div>
@@ -1701,8 +1799,18 @@ function refreshViewData() {
 // ═══════════════════════════════════════════════════════════
 function shareData() {
   if (STATE.pontos.length === 0) { toast('Nenhum dado para compartilhar', 'error'); return; }
+  // Strip observer coords from shared payload for privacy
+  const pontosPrivacy = STATE.pontos.map(p => ({
+    nome:     p.nome,
+    azimute:  p.azimute,
+    elevacao: p.elevacao,
+    alvo:     p.alvo,
+    alvoTipo: p.alvoTipo,
+    ts:       p.ts,
+    // lat/lon intentionally omitted from shared URL
+  }));
   const payload = JSON.stringify({
-    pontos: STATE.pontos,
+    pontos: pontosPrivacy,
     interseccoes: STATE.interseccoes,
     centroidesPorAlvo: STATE.centroidesPorAlvo,
   });
@@ -1769,6 +1877,12 @@ function loadFromFile() {
 //  EXPOSE TO WINDOW (required because script is type="module")
 // ═══════════════════════════════════════════════════════════
 // All functions called via onclick= in HTML must be on window
+window.renameCandidato = function(key, nome) {
+  if (STATE.centroidesPorAlvo[key]) {
+    STATE.centroidesPorAlvo[key].alvo = nome;
+    renderMap(true);  // re-render map labels
+  }
+};
 window.openModal        = id => document.getElementById(id).classList.add('active');
 window.closeModal       = id => document.getElementById(id).classList.remove('active');
 window.confirmClear     = ()  => confirmClear();
