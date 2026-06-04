@@ -323,6 +323,18 @@ input[type=range].zoom-slider{
 .recent-item b{color:var(--accent)}
 .recent-empty{text-align:center;padding:16px 0;color:var(--text3);font-size:12px;font-family:var(--mono)}
 
+/* Tipo buttons */
+.tipo-btn {
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:10px 6px;border:1px solid var(--border);border-radius:10px;
+  background:var(--panel);cursor:pointer;transition:all 0.15s;
+  color:var(--text2);font-family:var(--mono);font-size:10px;
+  letter-spacing:0.5px;
+}
+.tipo-btn:hover { border-color:var(--accent2); }
+.tipo-btn.selected { border-color:var(--accent); background:rgba(74,222,128,0.08); color:var(--accent); }
+body.field-mode .tipo-btn.selected { border-color:#FFD700; background:rgba(255,215,0,0.1); color:#FFD700; }
+
 /* Toast */
 .toast-wrap{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9999;pointer-events:none}
 .toast{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:9px 18px;font-family:var(--mono);font-size:12px;color:var(--text);white-space:nowrap;animation:toastIn 0.2s ease;box-shadow:0 4px 16px rgba(0,0,0,0.5);margin-bottom:6px}
@@ -471,8 +483,25 @@ input[type=range].zoom-slider{
     </div>
 
     <!-- Alvo -->
-    <input class="target-input" type="text" id="targetInput"
-           placeholder="O que você está observando? (fumaça, balão...)">
+    <div style="margin:14px 0 6px;">
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--text3);margin-bottom:10px;">O QUE VOCÊ ESTÁ OBSERVANDO?</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
+        <button class="tipo-btn selected" id="tipoBalaoBTN" data-tipo="balao" onclick="selectTipo('balao')">
+          <span style="font-size:24px">🎈</span>
+          <span>Balão</span>
+        </button>
+        <button class="tipo-btn" id="tipoFogoBTN" data-tipo="fogo" onclick="selectTipo('fogo')">
+          <span style="font-size:24px">🔥</span>
+          <span>Fogo/Fumaça</span>
+        </button>
+        <button class="tipo-btn" id="tipoOutroBTN" data-tipo="outro" onclick="selectTipo('outro')">
+          <span style="font-size:24px">👁️</span>
+          <span>Outro</span>
+        </button>
+      </div>
+      <input class="target-input" type="text" id="targetInput"
+             placeholder="Detalhe (opcional)..." value="Balão">
+    </div>
 
     <!-- Progress upload -->
     <div class="progress-bar-wrap" id="progressWrap">
@@ -539,7 +568,26 @@ let capturedElev    = null;
 let compassActive   = false;
 let lastAlpha       = null;
 let photoBlob       = null;
+let alvoTipo        = 'balao';   // default
 let sessionRecords  = [];
+
+// ── TIPO SELECTOR ────────────────────────────────────────
+const TIPO_DEFAULTS = {
+  balao: { label:'Balão',       icon:'🎈' },
+  fogo:  { label:'Fogo/Fumaça', icon:'🔥' },
+  outro: { label:'Outro',       icon:'👁️' },
+};
+
+window.selectTipo = function(tipo) {
+  alvoTipo = tipo;
+  ['balao','fogo','outro'].forEach(t => {
+    $(`tipo${t.charAt(0).toUpperCase()+t.slice(1)}BTN`)?.classList.toggle('selected', t === tipo);
+  });
+  // Only auto-fill target name if it matches a default (don't overwrite custom text)
+  const cur = $('targetInput').value.trim();
+  const isDefault = Object.values(TIPO_DEFAULTS).some(d => d.label === cur) || cur === '';
+  if (isDefault) $('targetInput').value = TIPO_DEFAULTS[tipo].label;
+};
 
 // ── HELPERS ───────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -570,12 +618,12 @@ function startGPS() {
     $('gpsDot').className  = 'gps-dot ok';
     $('gpsText').textContent = `${gpsCoords.lat.toFixed(5)}, ${gpsCoords.lon.toFixed(5)}  ±${gpsCoords.acc}m`;
 
-    // Auto-fill name with coords + time if field still empty or was auto-filled before
+    // Auto-fill: just time — coords visible in GPS badge below
     const nameEl = $('nameInput');
     const isAutoFilled = nameEl.dataset.auto === '1';
     if (!nameEl.value || isAutoFilled) {
       const t = new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
-      nameEl.value = `${gpsCoords.lat.toFixed(4)}, ${gpsCoords.lon.toFixed(4)} · ${t}`;
+      nameEl.value = `${t} / seu nome`;
       nameEl.dataset.auto = '1';
     }
     checkNextReady();
@@ -915,12 +963,13 @@ window.registerObservation = async function() {
       azimute:    az,
       elevacao:   elev,
       alvo:       target,
+      alvoTipo:   alvoTipo,
       fotoUrl:    fotoUrl,
       ts:         serverTimestamp(),
       tsLocal:    new Date().toISOString(),
     });
 
-    sessionRecords.unshift({ name, target, az, tsLocal: new Date().toISOString(), hasFoto: !!fotoUrl });
+    sessionRecords.unshift({ name, target, tipo: alvoTipo, az, tsLocal: new Date().toISOString(), hasFoto: !!fotoUrl });
     renderRecent();
     toast(`✅ ${name} → ${target} @ ${az}°`, 'success');
 
@@ -928,7 +977,8 @@ window.registerObservation = async function() {
     photoBlob    = null;
     capturedAz   = null;
     capturedElev = null;
-    $('targetInput').value      = '';
+    alvoTipo     = 'balao';
+    selectTipo('balao');
     $('progressWrap').style.display = 'none';
     $('progressBar').style.width    = '0%';
     $('uploadStatus').textContent   = '';
@@ -948,7 +998,7 @@ function renderRecent() {
   if (!sessionRecords.length) { el.innerHTML='<div class="recent-empty">Nenhum registro ainda</div>'; return; }
   el.innerHTML = sessionRecords.slice(0,6).map(r=>`
     <div class="recent-item">
-      <b>${r.name}</b> → ${r.target}<br>
+      <b>${r.name}</b> → ${TIPO_DEFAULTS[r.tipo]?.icon||'👁️'} ${r.target}<br>
       Az: ${r.az}° · ${new Date(r.tsLocal).toLocaleTimeString('pt-BR')}${r.hasFoto?' · 📷':''}
     </div>`).join('');
 }
