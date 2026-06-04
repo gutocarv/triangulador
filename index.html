@@ -1016,12 +1016,14 @@ function startFirebaseSync() {
   fbUnsubscribe = q.onSnapshot((snapshot) => {
     const cutoff8h = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString();
     const pontosFirebase = [];
+    console.log('Firebase docs recebidos:', snapshot.size, '| cutoff8h:', cutoff8h);
     snapshot.forEach(d => {
       const data = d.data();
+      console.log('Doc:', d.id, '| tsLocal:', data.tsLocal, '| lat:', data.lat, '| az:', data.azimute);
       // Ignora se não tem coords (doc inválido)
-      if (!data.lat || !data.lon || !data.azimute) return;
+      if (!data.lat || !data.lon || !data.azimute) { console.log('  → IGNORADO: sem coords'); return; }
       // Ignora com mais de 8h (só se tiver tsLocal — senão inclui)
-      if (data.tsLocal && data.tsLocal < cutoff8h) return;
+      if (data.tsLocal && data.tsLocal < cutoff8h) { console.log('  → IGNORADO: muito antigo'); return; }
       pontosFirebase.push({
         id:       d.id,
         nome:     data.observador || 'Desconhecido',
