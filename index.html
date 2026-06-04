@@ -1134,15 +1134,16 @@ let fbUnsubscribe = null;
 let lastFbCount   = 0;
 
 function startFirebaseSync() {
-  // Carrega últimas 8h — filtragem no cliente para evitar índice composto no Firestore
-  const q = query(obsCol, orderBy('tsLocal', 'desc'));
+  // Sem orderBy para evitar erros em docs sem tsLocal — filtra tudo no cliente
+  const q = query(obsCol);
   fbUnsubscribe = onSnapshot(q, (snapshot) => {
-    // Converte docs do Firestore para o formato STATE.pontos
     const cutoff8h = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString();
     const pontosFirebase = [];
     snapshot.forEach(d => {
       const data = d.data();
-      // Ignora observações com mais de 8 horas
+      // Ignora se não tem coords (doc inválido)
+      if (!data.lat || !data.lon || !data.azimute) return;
+      // Ignora com mais de 8h (só se tiver tsLocal — senão inclui)
       if (data.tsLocal && data.tsLocal < cutoff8h) return;
       pontosFirebase.push({
         id:       d.id,
