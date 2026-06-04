@@ -7,7 +7,6 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/exifr@7/dist/full.esm.js" type="module" id="exifrModule"></script>
 <style>
   :root {
     --bg: #0d1117;
@@ -941,130 +940,7 @@ let map, markers = [], lines = [];
 // ═══════════════════════════════════════════════════════════
 //  OCR VIA CLAUDE VISION API
 // ═══════════════════════════════════════════════════════════
-// Carrega exifr dinamicamente (módulo ES)
-let _exifrPromise = null;
-function loadExifr() {
-  if (_exifrPromise) return _exifrPromise;
-  _exifrPromise = import('https://cdn.jsdelivr.net/npm/exifr@7/dist/full.esm.js');
-  return _exifrPromise;
-}
 
-async function handleOcrFile(input) {
-  const file = input.files[0];
-  if (!file) return;
-
-  const label  = document.getElementById('ocrLabelText');
-  const status = document.getElementById('ocrStatus');
-
-  label.innerHTML = `<span class="ocr-spinner"></span> Lendo metadados EXIF...`;
-  status.style.display = 'block';
-  status.innerHTML     = `<span class="ocr-spinner"></span> Extraindo GPS e azimute da foto...`;
-
-  try {
-    const exifr = await loadExifr();
-
-    // Lê todos os campos GPS relevantes
-    const exif = await exifr.parse(file, {
-      gps: true,
-      tiff: true,
-      exif: true,
-      // campos explícitos que queremos
-      pick: [
-        'GPSLatitude','GPSLatitudeRef',
-        'GPSLongitude','GPSLongitudeRef',
-        'GPSImgDirection','GPSImgDirectionRef',
-        'GPSAltitude',
-        'DateTimeOriginal','Make','Model',
-      ]
-    });
-
-    if (!exif) throw new Error('Nenhum metadado EXIF encontrado nesta foto.');
-
-    const filled  = [];
-    const missing = [];
-
-    // ── Latitude ──────────────────────────────────────────
-    let lat = null;
-    if (exif.latitude !== undefined) {
-      lat = exif.latitude;  // exifr já converte para decimal
-    } else if (exif.GPSLatitude !== undefined) {
-      const [d, m, s] = exif.GPSLatitude;
-      lat = d + m/60 + s/3600;
-      if ((exif.GPSLatitudeRef || 'N') === 'S') lat = -lat;
-    }
-
-    // ── Longitude ─────────────────────────────────────────
-    let lon = null;
-    if (exif.longitude !== undefined) {
-      lon = exif.longitude;
-    } else if (exif.GPSLongitude !== undefined) {
-      const [d, m, s] = exif.GPSLongitude;
-      lon = d + m/60 + s/3600;
-      if ((exif.GPSLongitudeRef || 'W') === 'W') lon = -lon;
-    }
-
-    // ── Azimute (direção da câmera) ────────────────────────
-    let az = null;
-    if (exif.GPSImgDirection !== undefined) {
-      az = parseFloat(exif.GPSImgDirection);
-    }
-
-    // Preenche os campos
-    if (lat !== null && !isNaN(lat)) {
-      document.getElementById('fLat').value = lat.toFixed(6);
-      filled.push(`Lat: ${lat.toFixed(6)}`);
-    } else { missing.push('Latitude'); }
-
-    if (lon !== null && !isNaN(lon)) {
-      document.getElementById('fLon').value = lon.toFixed(6);
-      filled.push(`Lon: ${lon.toFixed(6)}`);
-    } else { missing.push('Longitude'); }
-
-    if (az !== null && !isNaN(az)) {
-      document.getElementById('fAzimute').value = az.toFixed(1);
-      document.getElementById('fAzimute').dispatchEvent(new Event('input'));
-      filled.push(`Az: ${az.toFixed(1)}°`);
-    } else { missing.push('Azimute (GPSImgDirection)'); }
-
-    // Info extra
-    const device   = [exif.Make, exif.Model].filter(Boolean).join(' ') || '—';
-    const datetime = exif.DateTimeOriginal
-      ? new Date(exif.DateTimeOriginal).toLocaleString('pt-BR')
-      : '—';
-    const alt = exif.GPSAltitude ? `${Math.round(exif.GPSAltitude)}m` : '—';
-
-    // Monta status
-    const okHtml  = filled.length  ? `✅ <b style="color:var(--accent);">Extraído:</b> ${filled.join(' · ')}<br>` : '';
-    const misHtml = missing.length ? `⚠️ <span style="color:var(--accent4);">Não encontrado: ${missing.join(', ')}</span><br>` : '';
-    const infoHtml = `<span style="color:var(--text3);font-size:11px;">
-      📱 ${device} &nbsp;·&nbsp; 🕐 ${datetime} &nbsp;·&nbsp; ⛰️ Alt: ${alt}
-    </span>`;
-
-    status.innerHTML = okHtml + misHtml + infoHtml;
-    label.innerHTML  = `📷 ${file.name.length > 36 ? file.name.slice(0,36)+'…' : file.name}`;
-
-    if (filled.length > 0) {
-      toast(`EXIF: ${filled.join(' · ')}`, 'success');
-    } else {
-      toast('Nenhum dado GPS encontrado no EXIF', 'error');
-    }
-
-    if (missing.includes('Azimute (GPSImgDirection)')) {
-      // Aviso amigável — campo raro, depende do app usado
-      status.innerHTML += `<br><span style="color:var(--text3);font-size:11px;">
-        💡 GPSImgDirection ausente — preencha o azimute manualmente.<br>
-        Apps como <b>Compass</b>, <b>GPS Logger</b> ou <b>FieldGenius</b> gravam este campo.
-      </span>`;
-    }
-
-  } catch (err) {
-    status.innerHTML = `❌ <span style="color:var(--danger);">${err.message}</span>`;
-    label.innerHTML  = '📷 Clique para selecionar uma foto';
-    toast('Erro EXIF: ' + err.message, 'error');
-  }
-
-  input.value = ''; // permite re-selecionar o mesmo arquivo
-}
 
 // ═══════════════════════════════════════════════════════════
 //  INIT
@@ -1406,7 +1282,7 @@ function runTriangulation(silent) {
       .sort((a, b) => b[1] - a[1])[0]?.[0] || `Alvo_${candidateIdx}`;
 
     const key = `candidato_${candidateIdx}`;
-    STATE.centroidesPorAlvo[key] = {
+    const candObj = {
       lat:    cLat,
       lon:    cLon,
       alvo:   nomeSugerido,
@@ -1414,40 +1290,31 @@ function runTriangulation(silent) {
       rms:    rms.toFixed(1),
       pontos: [...new Set(members.flatMap(r => [r.p1.nome, r.p2.nome]))],
     };
-    candidateIdx++;
-  }
 
-  // ── ALTITUDE 3D: para cada candidato com 2+ obs com elevação ──
-  for (const key of Object.keys(STATE.centroidesPorAlvo)) {
-    const cand    = STATE.centroidesPorAlvo[key];
-    const members = Object.values(clusters).find(m =>
-      Math.abs(m.reduce((s,r)=>s+r.lat,0)/m.length - cand.lat) < 0.0001
-    );
-    if (!members) continue;
-
-    // Coleta pares com elevação válida
+    // ── ALTITUDE 3D (inline, clusters still in scope) ──
     const altSamples = [];
     for (const r of members) {
       for (const pt of [r.p1, r.p2]) {
-        if (pt.elevacao !== null && pt.elevacao !== undefined) {
-          // Distância horizontal ao candidato (metros)
-          const dH = haversine(pt.lat, pt.lon, cand.lat, cand.lon);
-          // Altitude do alvo = altitude_observador + dH * tan(elevação)
+        if (pt.elevacao !== null && pt.elevacao !== undefined && !isNaN(pt.elevacao)) {
+          const dH      = haversine(pt.lat, pt.lon, cLat, cLon);
           const elevRad = deg2rad(Math.abs(pt.elevacao));
-          const altObs  = 0; // GPS altitude — zero se não disponível
-          const altAlvo = altObs + dH * Math.tan(elevRad);
+          const altAlvo = dH * Math.tan(elevRad);
           if (altAlvo > 0 && altAlvo < 15000) altSamples.push(altAlvo);
         }
       }
     }
-
     if (altSamples.length >= 2) {
       const altMedia = altSamples.reduce((a,b)=>a+b,0) / altSamples.length;
       const altRms   = Math.sqrt(altSamples.reduce((s,a)=>s+(a-altMedia)**2,0)/altSamples.length);
-      cand.altitude    = Math.round(altMedia);
-      cand.altitudeRms = Math.round(altRms);
+      candObj.altitude    = Math.round(altMedia);
+      candObj.altitudeRms = Math.round(altRms);
     }
+
+    STATE.centroidesPorAlvo[key] = candObj;
+    candidateIdx++;
   }
+
+
 
   updateStatus();
   if (!silent) toast(
@@ -1884,8 +1751,7 @@ window.renameCandidato = function(key, nome) {
     renderMap(true);  // re-render map labels
   }
 };
-window.openModal        = id => document.getElementById(id).classList.add('active');
-window.closeModal       = id => document.getElementById(id).classList.remove('active');
+// openModal/closeModal defined as functions below — no window. needed
 window.confirmClear     = ()  => confirmClear();
 window.shareData        = ()  => shareData();
 window.copyShareUrl     = ()  => copyShareUrl();
@@ -1903,7 +1769,9 @@ window.loadFromFile     = ()  => loadFromFile();
 // ═══════════════════════════════════════════════════════════
 function openModal(id) { document.getElementById(id).classList.add('active'); }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
-// window versions set above also point to these
+// Expose to window for onclick= handlers in HTML (required for type="module")
+window.openModal  = openModal;
+window.closeModal = closeModal;
 
 // Close on backdrop click
 document.querySelectorAll('.overlay').forEach(el => {
