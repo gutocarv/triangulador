@@ -649,37 +649,37 @@
   <nav class="sidebar-nav">
     <div class="nav-section">
       <div class="nav-label">Pontos</div>
-      <button class="nav-btn primary" onclick="openModal('addPointModal')">
+      <button class="nav-btn primary" onclick="__dispatch('openModal',['addPointModal'])">
         <i class="fas fa-plus-circle"></i> Adicionar ponto
       </button>
-      <button class="nav-btn info-btn" onclick="openModal('viewDataModal')">
+      <button class="nav-btn info-btn" onclick="__dispatch('openModal',['viewDataModal'])">
         <i class="fas fa-list"></i> Ver todos os dados
       </button>
     </div>
 
     <div class="nav-section">
       <div class="nav-label">Mapa</div>
-      <button class="nav-btn" id="satBtn" onclick="toggleSatellite()">
+      <button class="nav-btn" id="satBtn" onclick="__dispatch('toggleSatellite',[])">
         <i class="fas fa-satellite"></i> Satélite
       </button>
     </div>
 
     <div class="nav-section">
       <div class="nav-label">Dados</div>
-      <button class="nav-btn" onclick="shareData()">
+      <button class="nav-btn" onclick="__dispatch('shareData',[])">
         <i class="fas fa-share-nodes"></i> Compartilhar link
       </button>
-      <button class="nav-btn" onclick="saveData()">
+      <button class="nav-btn" onclick="__dispatch('saveData',[])">
         <i class="fas fa-download"></i> Exportar JSON
       </button>
-      <button class="nav-btn" onclick="openModal('loadDataModal')">
+      <button class="nav-btn" onclick="__dispatch('openModal',['loadDataModal'])">
         <i class="fas fa-upload"></i> Importar JSON
       </button>
     </div>
 
     <div class="nav-section">
       <div class="divider"></div>
-      <button class="nav-btn danger" onclick="confirmClear()">
+      <button class="nav-btn danger" onclick="__dispatch('confirmClear',[])">
         <i class="fas fa-trash-can"></i> Limpar dados
       </button>
     </div>
@@ -722,7 +722,7 @@
         <li><b>Compartilhar</b> — gera um link com todos os dados embutidos para enviar aos colegas.</li>
       </ol>
     </div>
-    <button class="instructions-btn" onclick="toggleInstructions()">
+    <button class="instructions-btn" onclick="__dispatch('toggleInstructions',[])">
       <i class="fas fa-circle-question"></i> Como usar
     </button>
   </div>
@@ -738,7 +738,7 @@
   <div class="modal">
     <div class="modal-head">
       <h2 id="addPointModalTitle">➕ ADICIONAR PONTO</h2>
-      <button class="modal-close" onclick="closeModal('addPointModal')">×</button>
+      <button class="modal-close" onclick="__dispatch('closeModal',['addPointModal'])">×</button>
     </div>
     <div class="modal-body">
 
@@ -798,8 +798,8 @@
 
     </div><!-- fim modal-body -->
     <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeModal('addPointModal')">Cancelar</button>
-      <button class="btn btn-green" onclick="submitPoint()" id="addPointBtn">Adicionar</button>
+      <button class="btn btn-ghost" onclick="__dispatch('closeModal',['addPointModal'])">Cancelar</button>
+      <button class="btn btn-green" onclick="__dispatch('submitPoint',[])" id="addPointBtn">Adicionar</button>
     </div>
   </div>
 </div>
@@ -811,7 +811,7 @@
   <div class="modal modal-lg">
     <div class="modal-head">
       <h2>📊 DADOS DO SISTEMA</h2>
-      <button class="modal-close" onclick="closeModal('viewDataModal')">×</button>
+      <button class="modal-close" onclick="__dispatch('closeModal',['viewDataModal'])">×</button>
     </div>
     <div class="modal-body">
       <div class="section-title">Pontos de observação</div>
@@ -820,7 +820,7 @@
       <div id="viewInter"></div>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeModal('viewDataModal')">Fechar</button>
+      <button class="btn btn-ghost" onclick="__dispatch('closeModal',['viewDataModal'])">Fechar</button>
     </div>
   </div>
 </div>
@@ -832,7 +832,7 @@
   <div class="modal">
     <div class="modal-head">
       <h2>📂 IMPORTAR JSON</h2>
-      <button class="modal-close" onclick="closeModal('loadDataModal')">×</button>
+      <button class="modal-close" onclick="__dispatch('closeModal',['loadDataModal'])">×</button>
     </div>
     <div class="modal-body">
       <div class="form-row">
@@ -841,8 +841,8 @@
       </div>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeModal('loadDataModal')">Cancelar</button>
-      <button class="btn btn-blue" onclick="loadFromFile()">Carregar</button>
+      <button class="btn btn-ghost" onclick="__dispatch('closeModal',['loadDataModal'])">Cancelar</button>
+      <button class="btn btn-blue" onclick="__dispatch('loadFromFile',[])">Carregar</button>
     </div>
   </div>
 </div>
@@ -854,19 +854,19 @@
   <div class="modal">
     <div class="modal-head">
       <h2>🔗 COMPARTILHAR</h2>
-      <button class="modal-close" onclick="closeModal('shareModal')">×</button>
+      <button class="modal-close" onclick="__dispatch('closeModal',['shareModal'])">×</button>
     </div>
     <div class="modal-body">
       <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">
         O link abaixo contém todos os pontos e intersecções codificados. Envie para seus colegas — ao abrir, o sistema carrega automaticamente.
       </p>
       <div class="share-url-box" id="shareUrlBox"></div>
-      <button class="btn btn-blue" onclick="copyShareUrl()" style="width:100%;">
+      <button class="btn btn-blue" onclick="__dispatch('copyShareUrl',[])" style="width:100%;">
         <i class="fas fa-copy"></i> Copiar link
       </button>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeModal('shareModal')">Fechar</button>
+      <button class="btn btn-ghost" onclick="__dispatch('closeModal',['shareModal'])">Fechar</button>
     </div>
   </div>
 </div>
@@ -878,18 +878,30 @@
   <div class="modal" style="max-width:400px;">
     <div class="modal-head">
       <h2 id="confirmTitle">Confirmar</h2>
-      <button class="modal-close" onclick="closeModal('confirmModal')">×</button>
+      <button class="modal-close" onclick="__dispatch('closeModal',['confirmModal'])">×</button>
     </div>
     <div class="modal-body">
       <p id="confirmMsg" style="color:var(--text2);font-size:13.5px;line-height:1.6;"></p>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeModal('confirmModal')">Cancelar</button>
+      <button class="btn btn-ghost" onclick="__dispatch('closeModal',['confirmModal'])">Cancelar</button>
       <button class="btn btn-red" id="confirmYes">Confirmar</button>
     </div>
   </div>
 </div>
 
+<script>
+// Dispatch queue — plain script loads synchronously before any onclick fires
+window.__ready = false;
+window.__queue = [];
+window.__dispatch = function(fn, args) {
+  if (window.__ready) {
+    window[fn]?.apply(window, args);
+  } else {
+    window.__queue.push([fn, args]);
+  }
+};
+</script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module">
 // ═══════════════════════════════════════════════════════════
@@ -990,6 +1002,11 @@ function init() {
   setupFormListeners();
   startFirebaseSync();
   setupMobileLayout();
+
+  // Mark module as ready and flush any queued onclick calls
+  window.__ready = true;
+  window.__queue.forEach(([fn, args]) => window[fn]?.(...args));
+  window.__queue = [];
 }
 
 function setupMobileLayout() {
@@ -1415,6 +1432,9 @@ function renderMap(silent) {
 
   // Alvos candidatos (destaque dourado)
   Object.values(STATE.centroidesPorAlvo).forEach(cand => {
+    const altHtml = cand.altitude
+      ? `<br>Altitude est.: <b style="color:#60a5fa">${cand.altitude}m</b> ±${cand.altitudeRms}m`
+      : '';
     const mk = L.marker([cand.lat, cand.lon], {
       icon: L.divIcon({
         html: `<div style="
@@ -1427,9 +1447,6 @@ function renderMap(silent) {
         className: '',
         iconAnchor: [0, 0]
       })
-    const altHtml = cand.altitude
-      ? `<br>Altitude est.: <b style="color:#60a5fa">${cand.altitude}m</b> ±${cand.altitudeRms}m`
-      : '';
     }).bindPopup(`<b>🎯 ${cand.alvo}</b><br>
       ${cand.lat.toFixed(6)}, ${cand.lon.toFixed(6)}<br>
       Pares: ${cand.nObs} &nbsp;|&nbsp; Pontos: ${cand.pontos.join(', ')}<br>
